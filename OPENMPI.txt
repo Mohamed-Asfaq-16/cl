@@ -1,0 +1,180 @@
+sudo apt update
+sudo apt install openmpi-bin libopenmpi-dev openmpi-common
+
+
+1)
+
+nano hello_openmpi.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char *argv[]) {
+    int rank, size;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    printf("Hello from rank %d out of %d processes\n", rank, size);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+mpicc -o hello_openmpi hello_openmpi.c
+mpirun -np 4 ./hello_openmpi
+
+
+2)
+
+
+nano sum_openmpi.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char *argv[]) {
+    int rank, size;
+    int local_val, sum;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    local_val = rank + 1;
+
+    MPI_Reduce(&local_val, &sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+        printf("Sum of ranks = %d\n", sum);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+mpicc -o sum_openmpi sum_openmpi.c
+mpirun -np 4 ./sum_openmpi
+
+
+
+3)
+
+
+nano broadcast_openmpi.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char *argv[]) {
+    int rank, size;
+    int data;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+        data = 100;  // some data to send
+    }
+
+    MPI_Bcast(&data, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    printf("Rank %d received data = %d\n", rank, data);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+mpicc -o broadcast_openmpi broadcast_openmpi.c
+mpirun -np 4 ./broadcast_openmpi
+
+
+4)
+
+nano prime_openmpi.c
+
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+int main(int argc, char *argv[]) {
+    int rank, size, number;
+    int local_result = 1, global_result;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+        if (argc < 2) {
+            printf("Usage: mpirun -np 4 ./prime_openmpi <number>\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        number = atoi(argv[1]);
+    }
+
+    MPI_Bcast(&number, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    int start = 2 + rank * ((int)sqrt(number) / size);
+    int end = (rank == size - 1) ? (int)sqrt(number) : start + ((int)sqrt(number) / size) - 1;
+
+    for (int i = start; i <= end; i++) {
+        if (number % i == 0) {
+            local_result = 0;
+            break;
+        }
+    }
+
+    MPI_Allreduce(&local_result, &global_result, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        if (global_result)
+            printf("%d is a prime number.\n", number);
+        else
+            printf("%d is NOT a prime number.\n", number);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+mpicc -o prime_openmpi prime_openmpi.c -lm
+mpirun -np 4 ./prime_openmpi 29
+
+
+5)
+
+nano fibonacci_openmpi.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int fib(int n) {
+    if (n <= 1) return n;
+    return fib(n-1) + fib(n-2);
+}
+
+int main(int argc, char *argv[]) {
+    int rank, size;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank < size) {
+        printf("Rank %d: Fibonacci(%d) = %d\n", rank, rank, fib(rank));
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+mpicc -o fibonacci_openmpi fibonacci_openmpi.c
+mpirun -np 4 ./fibonacci_openmpi
